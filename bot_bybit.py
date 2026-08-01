@@ -656,6 +656,7 @@ def test_net():
         }), 500
 
 @app.route('/test-ohlcv', methods=['GET'])
+def test_ohlcv():
     """Test fetching OHLCV data from Bybit testnet from Flask context."""
     try:
         url = 'https://api-testnet.bybit.com/v5/market/kline'
