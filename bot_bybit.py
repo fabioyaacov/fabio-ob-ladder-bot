@@ -50,7 +50,6 @@ exchange = ccxt.bybit({
     }
 })
 
-# Force testnet endpoint
 exchange.set_sandbox_mode(True)
 
 # ============================================================================
@@ -425,28 +424,18 @@ def place_entry_orders(symbol, entries):
     return placed
 
 def fetch_ohlcv(timeframe, limit=500):
-    """Fetch OHLCV directly from Bybit v5 API (more reliable than CCXT for testnet)."""
+    """Fetch OHLCV from Bybit v5 API. Uses main API for public data (no region block)."""
     try:
         log(f'fetch_ohlcv: START {SYMBOL} {timeframe} limit={limit}')
 
-        # Test basic connectivity first
-        try:
-            log('fetch_ohlcv: testing connectivity to api-testnet.bybit.com...')
-            test_resp = requests.get('https://api-testnet.bybit.com/v5/market/time', timeout=10)
-            log(f'fetch_ohlcv: connectivity test HTTP {test_resp.status_code}')
-        except Exception as ce:
-            log(f'fetch_ohlcv: CONNECTIVITY FAILED: {type(ce).__name__}: {ce}')
-            bot_state['errors'].append(f'CONNECTIVITY: {type(ce).__name__}: {str(ce)}')
-            return []
-
-        url = 'https://api-testnet.bybit.com/v5/market/kline'
+        url = 'https://api.bybit.com/v5/market/kline'
         params = {
             'category': 'linear',
             'symbol': SYMBOL,
             'interval': timeframe,
             'limit': str(limit),
         }
-        log(f'fetch_ohlcv: calling {url} with params={params}')
+        log(f'fetch_ohlcv: calling {url}')
         resp = requests.get(url, params=params, timeout=15)
         log(f'fetch_ohlcv: HTTP {resp.status_code}')
         if resp.status_code != 200:
@@ -640,9 +629,9 @@ def status():
 
 @app.route('/test-net', methods=['GET'])
 def test_net():
-    """Test network connectivity to Bybit testnet from Flask context."""
+    """Test network connectivity to Bybit main API from Flask context."""
     try:
-        resp = requests.get('https://api-testnet.bybit.com/v5/market/time', timeout=10)
+        resp = requests.get('https://api.bybit.com/v5/market/time', timeout=10)
         return jsonify({
             'status': 'ok',
             'http_code': resp.status_code,
@@ -658,9 +647,9 @@ def test_net():
 
 @app.route('/test-ohlcv', methods=['GET'])
 def test_ohlcv():
-    """Test fetching OHLCV data from Bybit testnet from Flask context."""
+    """Test fetching OHLCV data from Bybit main API from Flask context."""
     try:
-        url = 'https://api-testnet.bybit.com/v5/market/kline'
+        url = 'https://api.bybit.com/v5/market/kline'
         params = {'category': 'linear', 'symbol': SYMBOL, 'interval': '30m', 'limit': '5'}
         resp = requests.get(url, params=params, timeout=15)
         return jsonify({
