@@ -427,7 +427,18 @@ def place_entry_orders(symbol, entries):
 def fetch_ohlcv(timeframe, limit=500):
     """Fetch OHLCV directly from Bybit v5 API (more reliable than CCXT for testnet)."""
     try:
-        log(f'fetch_ohlcv: {SYMBOL} {timeframe} limit={limit}')
+        log(f'fetch_ohlcv: START {SYMBOL} {timeframe} limit={limit}')
+
+        # Test basic connectivity first
+        try:
+            log('fetch_ohlcv: testing connectivity to api-testnet.bybit.com...')
+            test_resp = requests.get('https://api-testnet.bybit.com/v5/market/time', timeout=10)
+            log(f'fetch_ohlcv: connectivity test HTTP {test_resp.status_code}')
+        except Exception as ce:
+            log(f'fetch_ohlcv: CONNECTIVITY FAILED: {type(ce).__name__}: {ce}')
+            bot_state['errors'].append(f'CONNECTIVITY: {type(ce).__name__}: {str(ce)}')
+            return []
+
         url = 'https://api-testnet.bybit.com/v5/market/kline'
         params = {
             'category': 'linear',
@@ -435,6 +446,7 @@ def fetch_ohlcv(timeframe, limit=500):
             'interval': timeframe,
             'limit': str(limit),
         }
+        log(f'fetch_ohlcv: calling {url} with params={params}')
         resp = requests.get(url, params=params, timeout=15)
         log(f'fetch_ohlcv: HTTP {resp.status_code}')
         if resp.status_code != 200:
@@ -447,9 +459,7 @@ def fetch_ohlcv(timeframe, limit=500):
             bot_state['errors'].append(f'fetch_ohlcv Bybit: {result.get("retMsg")}')
             return []
         klines = result.get('result', {}).get('list', [])
-        # Bybit returns klines in reverse order (newest first), reverse to oldest first
         klines.reverse()
-        # CCXT format: [timestamp, open, high, low, close, volume]
         data = []
         for k in klines:
             data.append([
@@ -460,10 +470,10 @@ def fetch_ohlcv(timeframe, limit=500):
                 float(k[4]),  # close
                 float(k[5]),  # volume
             ])
-        log(f'fetch_ohlcv: got {len(data)} bars')
+        log(f'fetch_ohlcv: got {len(data)} bars, DONE')
         return data
     except requests.exceptions.Timeout:
-        log('fetch_ohlcv: TIMEOUT (15s)')
+        log('fetch_ohlcv: TIMEOUT')
         bot_state['errors'].append('fetch_ohlcv: TIMEOUT')
         return []
     except Exception as e:
