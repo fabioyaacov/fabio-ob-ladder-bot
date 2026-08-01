@@ -2,7 +2,7 @@ services:
   - type: web
     name: fabio-ob-ladder-bot
     env: python
-    region: oregon
+    region: frankfurt
     plan: free
     branch: main
     buildCommand: pip install -r requirements.txt
