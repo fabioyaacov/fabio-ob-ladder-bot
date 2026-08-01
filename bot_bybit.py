@@ -55,6 +55,7 @@ exchange = ccxt.bybit({
 # ============================================================================
 bot_state = {
     'running': False,
+    'engine_step': 'not started',
     'last_cycle': None,
     'current_price': None,
     'mid_range': None,
@@ -546,96 +547,108 @@ def parse_ohlcv(data):
 async def engine_cycle():
     """Run one cycle of the OB Ladder Engine."""
     log(f'--- Engine cycle #{bot_state["cycle_count"]} ---')
+    bot_state['engine_step'] = 'starting cycle'
 
-    # Fetch OHLCV for primary timeframe (use 30m as default trading TF)
-    primary_tf = TIMEFRAMES[-1]  # '30'
-    data = await fetch_ohlcv(primary_tf, limit=500)
-    if not data or len(data) < SWING_LENGTH * 2 + 1:
-        log(f'Not enough data for {primary_tf} ({len(data) if data else 0} bars)')
-        return
+    try:
+        primary_tf = TIMEFRAMES[-1]
+        bot_state['engine_step'] = f'fetching OHLCV {primary_tf}'
+        log(f'Step 1: Fetching OHLCV {primary_tf}...')
+        data = await fetch_ohlcv(primary_tf, limit=500)
+        if not data or len(data) < SWING_LENGTH * 2 + 1:
+            log(f'Not enough data for {primary_tf} ({len(data) if data else 0} bars)')
+            return
 
-    timestamps, opens, highs, lows, closes, volumes = parse_ohlcv(data)
-    current_price = closes[-1]
-    atr_val = calculate_atr(highs, lows, closes, period=10)
-    bot_state['current_price'] = current_price
+        timestamps, opens, highs, lows, closes, volumes = parse_ohlcv(data)
+        current_price = closes[-1]
+        log(f'Step 2: Got {len(data)} bars, current price={current_price}')
+        atr_val = calculate_atr(highs, lows, closes, period=10)
+        bot_state['current_price'] = current_price
 
-    # Detect order blocks
-    bullish_obs, bearish_obs = detect_order_blocks(
-        highs, lows, opens, closes, volumes, timestamps,
-        swing_length=SWING_LENGTH, atr_val=atr_val, max_atr_mult=MAX_ATR_MULT
-    )
+        log(f'Step 3: Detecting order blocks (swing_length={SWING_LENGTH})...')
+        bot_state['engine_step'] = 'detecting order blocks'
+        bullish_obs, bearish_obs = detect_order_blocks(
+            highs, lows, opens, closes, volumes, timestamps,
+            swing_length=SWING_LENGTH, atr_val=atr_val, max_atr_mult=MAX_ATR_MULT
+        )
+        log(f'Step 4: Found {len(bullish_obs)} Bull OBs, {len(bearish_obs)} Bear OBs')
 
-    # Update breaker status
-    bullish_obs = update_breaker_status(bullish_obs, highs, lows, timestamps)
-    bearish_obs = update_breaker_status(bearish_obs, highs, lows, timestamps)
+        bot_state['engine_step'] = 'updating breaker status'
+        bullish_obs = update_breaker_status(bullish_obs, highs, lows, timestamps)
+        bearish_obs = update_breaker_status(bearish_obs, highs, lows, timestamps)
 
-    # Find nearest OBs
-    nearest_bull, nearest_bear = find_nearest_obs(bullish_obs, bearish_obs, current_price)
-    bot_state['nearest_bull_ob'] = nearest_bull
-    bot_state['nearest_bear_ob'] = nearest_bear
+        bot_state['engine_step'] = 'finding nearest OBs'
+        nearest_bull, nearest_bear = find_nearest_obs(bullish_obs, bearish_obs, current_price)
+        bot_state['nearest_bull_ob'] = nearest_bull
+        bot_state['nearest_bear_ob'] = nearest_bear
 
-    # Calculate mid-range
-    mid_range = calc_mid_range(nearest_bull, nearest_bear)
-    bot_state['mid_range'] = mid_range
+        bot_state['engine_step'] = 'calculating mid-range'
+        mid_range = calc_mid_range(nearest_bull, nearest_bear)
+        bot_state['mid_range'] = mid_range
 
-    log(f'Price={current_price} | Bull OBs={len(bullish_obs)} Bear OBs={len(bearish_obs)} | '
-        f'Nearest Bull={nearest_bull["top"] if nearest_bull else "none"} '
-        f'Nearest Bear={nearest_bear["bottom"] if nearest_bear else "none"} | '
-        f'MidRange={mid_range}')
+        log(f'Price={current_price} | Bull OBs={len(bullish_obs)} Bear OBs={len(bearish_obs)} | '
+            f'Nearest Bull={nearest_bull["top"] if nearest_bull else "none"} '
+            f'Nearest Bear={nearest_bear["bottom"] if nearest_bear else "none"} | '
+            f'MidRange={mid_range}')
 
-    # Check if OBs changed -> clear fired entries and cancel old orders
-    bull_changed = False
-    bear_changed = False
+        bot_state['engine_step'] = 'checking OB changes'
+        bull_changed = False
+        bear_changed = False
 
-    if nearest_bull:
-        bull_start = nearest_bull['start_time']
-        if bot_state['last_bull_ob_start'] is None or bull_start != bot_state['last_bull_ob_start']:
-            bull_changed = True
-            bot_state['last_bull_ob_start'] = bull_start
-            # Clear long fired entries
-            bot_state['fired_entries'] = [e for e in bot_state['fired_entries'] if not e.startswith('Long')]
-            log(f'Bull OB changed -> cleared Long fired entries')
+        if nearest_bull:
+            bull_start = nearest_bull['start_time']
+            if bot_state['last_bull_ob_start'] is None or bull_start != bot_state['last_bull_ob_start']:
+                bull_changed = True
+                bot_state['last_bull_ob_start'] = bull_start
+                bot_state['fired_entries'] = [e for e in bot_state['fired_entries'] if not e.startswith('Long')]
+                log(f'Bull OB changed -> cleared Long fired entries')
 
-    if nearest_bear:
-        bear_start = nearest_bear['start_time']
-        if bot_state['last_bear_ob_start'] is None or bear_start != bot_state['last_bear_ob_start']:
-            bear_changed = True
-            bot_state['last_bear_ob_start'] = bear_start
-            # Clear short fired entries
-            bot_state['fired_entries'] = [e for e in bot_state['fired_entries'] if not e.startswith('Short')]
-            log(f'Bear OB changed -> cleared Short fired entries')
+        if nearest_bear:
+            bear_start = nearest_bear['start_time']
+            if bot_state['last_bear_ob_start'] is None or bear_start != bot_state['last_bear_ob_start']:
+                bear_changed = True
+                bot_state['last_bear_ob_start'] = bear_start
+                bot_state['fired_entries'] = [e for e in bot_state['fired_entries'] if not e.startswith('Short')]
+                log(f'Bear OB changed -> cleared Short fired entries')
 
-    # If OBs changed, cancel old open orders for that direction
-    if bull_changed or bear_changed:
-        await cancel_open_orders(SYMBOL)
-        if bull_changed:
-            bot_state['active_orders'] = {k: v for k, v in bot_state['active_orders'].items() if not k.startswith('Short')}
-        if bear_changed:
-            bot_state['active_orders'] = {k: v for k, v in bot_state['active_orders'].items() if not k.startswith('Long')}
+        if bull_changed or bear_changed:
+            bot_state['engine_step'] = 'cancelling old orders'
+            await cancel_open_orders(SYMBOL)
+            if bull_changed:
+                bot_state['active_orders'] = {k: v for k, v in bot_state['active_orders'].items() if not k.startswith('Short')}
+            if bear_changed:
+                bot_state['active_orders'] = {k: v for k, v in bot_state['active_orders'].items() if not k.startswith('Long')}
 
-    # Calculate and place Long entries (in Bull OB / support)
-    long_entries = []
-    if nearest_bull:
-        long_entries = calculate_ladder_entries(nearest_bull, 'Long', mid_range, nearest_bear)
+        bot_state['engine_step'] = 'calculating ladder entries'
+        long_entries = []
+        short_entries = []
+        if nearest_bull:
+            long_entries = calculate_ladder_entries(nearest_bull, 'Long', mid_range, nearest_bear)
+        if nearest_bear:
+            short_entries = calculate_ladder_entries(nearest_bear, 'Short', mid_range, nearest_bull)
 
-    # Calculate and place Short entries (in Bear OB / resistance)
-    short_entries = []
-    if nearest_bear:
-        short_entries = calculate_ladder_entries(nearest_bear, 'Short', mid_range, nearest_bull)
+        all_entries = long_entries + short_entries
 
-    all_entries = long_entries + short_entries
+        new_entries = [e for e in all_entries if e['entry_id'] not in bot_state['fired_entries']]
+        if new_entries:
+            bot_state['engine_step'] = f'placing {len(new_entries)} orders'
+            log(f'Placing {len(new_entries)} new entries...')
+            placed = await place_entry_orders(SYMBOL, new_entries)
+            log(f'Placed {len(placed)} entries: {placed}')
+        else:
+            log(f'No new entries to place (all already fired)')
 
-    # Place orders for entries not yet fired
-    new_entries = [e for e in all_entries if e['entry_id'] not in bot_state['fired_entries']]
-    if new_entries:
-        log(f'Placing {len(new_entries)} new entries...')
-        placed = await place_entry_orders(SYMBOL, new_entries)
-        log(f'Placed {len(placed)} entries: {placed}')
-    else:
-        log(f'No new entries to place (all already fired)')
+        bot_state['engine_step'] = 'cycle complete'
+        bot_state['last_cycle'] = datetime.now().isoformat()
+        bot_state['cycle_count'] += 1
+        log(f'Cycle #{bot_state["cycle_count"]} complete')
 
-    bot_state['last_cycle'] = datetime.now().isoformat()
-    bot_state['cycle_count'] += 1
+    except Exception as e:
+        import traceback
+        err_msg = f'{datetime.now().isoformat()} - {str(e)}'
+        bot_state['errors'].append(err_msg)
+        bot_state['engine_step'] = f'ERROR: {str(e)}'
+        log(f'Engine cycle error: {e}')
+        log(traceback.format_exc())
 
 async def engine_loop():
     """Main engine loop running in background thread."""
@@ -658,10 +671,17 @@ async def engine_loop():
 def start_engine_thread():
     """Start the engine in a background thread with its own event loop."""
     def run_loop():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(engine_loop())
-        loop.close()
+        try:
+            log('Engine thread: creating event loop...')
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            log('Engine thread: event loop created, starting engine_loop...')
+            loop.run_until_complete(engine_loop())
+            loop.close()
+        except Exception as e:
+            err_msg = f'{datetime.now().isoformat()} - THREAD FATAL: {str(e)}'
+            bot_state['errors'].append(err_msg)
+            log(f'Engine thread FATAL error: {e}')
 
     thread = threading.Thread(target=run_loop, daemon=True)
     thread.start()
@@ -675,6 +695,7 @@ def start_engine_thread():
 def status():
     return jsonify({
         'status': 'running' if bot_state['running'] else 'stopped',
+        'engine_step': bot_state['engine_step'],
         'symbol': SYMBOL,
         'current_price': bot_state['current_price'],
         'mid_range': bot_state['mid_range'],
