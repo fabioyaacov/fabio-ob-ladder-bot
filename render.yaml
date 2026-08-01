@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: fabio-ob-ladder-bot
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn bot_bybit:app --workers 1 --threads 8 --timeout 120
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.7
+      - key: BYBIT_TESTNET_API_KEY
+        sync: false
+      - key: BYBIT_TESTNET_API_SECRET
+        sync: false
+      - key: SYMBOL
+        value: BTCUSDT
+      - key: ACCOUNT_BALANCE
+        value: "1000"
+      - key: RISK_PER_TRADE_PCT
+        value: "1.0"
+      - key: POLL_INTERVAL_SEC
+        value: "60"
+      - key: SWING_LENGTH
+        value: "10"
+      - key: MAX_ATR_MULT
+        value: "3.5"
