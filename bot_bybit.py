@@ -33,7 +33,7 @@ POLL_INTERVAL_SEC = int(os.environ.get('POLL_INTERVAL_SEC', '60'))
 SWING_LENGTH = int(os.environ.get('SWING_LENGTH', '10'))
 MAX_ATR_MULT = float(os.environ.get('MAX_ATR_MULT', '3.5'))
 NUM_ENTRIES = 4
-PRIMARY_TIMEFRAME = os.environ.get('PRIMARY_TIMEFRAME', '30m')
+PRIMARY_TIMEFRAME = os.environ.get('PRIMARY_TIMEFRAME', '30')
 
 # ============================================================================
 # EXCHANGE SETUP (synchronous CCXT - more reliable in threads)
