@@ -709,18 +709,50 @@ def engine_cycle():
         log(f'Directional bias from filters: {bias}')
 
         # === Step 5: Find nearest valid OBs on primary timeframe ===
+        # Fallback: if no valid OB on 30min, search on 1H, then 4H, then D
         bot_state['engine_step'] = 'finding nearest valid OBs'
         nearest_bull, nearest_bear = find_nearest_valid_obs(primary_bull, primary_bear, current_price)
+        bull_tf_used = PRIMARY_TIMEFRAME
+        bear_tf_used = PRIMARY_TIMEFRAME
+
+        if nearest_bull is None:
+            for tf in FILTER_TIMEFRAMES:
+                tf = tf.strip()
+                if not tf:
+                    continue
+                tf_bull = filter_obs.get(tf, {}).get('bull', [])
+                tf_candidate, _ = find_nearest_valid_obs(tf_bull, [], current_price)
+                if tf_candidate:
+                    nearest_bull = tf_candidate
+                    bull_tf_used = tf
+                    log(f'Fallback: found Bull OB on {tf} (none on {PRIMARY_TIMEFRAME})')
+                    break
+
+        if nearest_bear is None:
+            for tf in FILTER_TIMEFRAMES:
+                tf = tf.strip()
+                if not tf:
+                    continue
+                tf_bear = filter_obs.get(tf, {}).get('bear', [])
+                _, tf_candidate = find_nearest_valid_obs([], tf_bear, current_price)
+                if tf_candidate:
+                    nearest_bear = tf_candidate
+                    bear_tf_used = tf
+                    log(f'Fallback: found Bear OB on {tf} (none on {PRIMARY_TIMEFRAME})')
+                    break
+
         bot_state['nearest_bull_ob'] = nearest_bull
         bot_state['nearest_bear_ob'] = nearest_bear
+        bot_state['bull_tf_used'] = bull_tf_used
+        bot_state['bear_tf_used'] = bear_tf_used
 
         # === Step 6: Calculate mid-range ===
         bot_state['engine_step'] = 'calculating mid-range'
         mid_range = calc_mid_range(nearest_bull, nearest_bear)
         bot_state['mid_range'] = mid_range
 
-        log(f'Price={current_price} | Nearest Bull={nearest_bull["top"] if nearest_bull else "none"} '
-            f'Nearest Bear={nearest_bear["bottom"] if nearest_bear else "none"} | MidRange={mid_range} | Bias={bias}')
+        log(f'Price={current_price} | Nearest Bull={nearest_bull["top"] if nearest_bull else "none"} (TF={bull_tf_used}) '
+            f'Nearest Bear={nearest_bear["bottom"] if nearest_bear else "none"} (TF={bear_tf_used}) | MidRange={mid_range} | Bias={bias}')
 
         # === Step 7: Check for OB changes and reposition ===
         bot_state['engine_step'] = 'checking OB changes'
@@ -849,6 +881,8 @@ def status():
         'current_price': bot_state['current_price'],
         'mid_range': bot_state['mid_range'],
         'filter_bias': bot_state['filter_bias'],
+        'bull_tf_used': bot_state.get('bull_tf_used', PRIMARY_TIMEFRAME),
+        'bear_tf_used': bot_state.get('bear_tf_used', PRIMARY_TIMEFRAME),
         'nearest_bull_ob': bot_state['nearest_bull_ob'],
         'nearest_bear_ob': bot_state['nearest_bear_ob'],
         'all_bull_obs': bot_state.get('all_bull_obs', []),
