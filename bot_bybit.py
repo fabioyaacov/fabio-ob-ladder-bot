@@ -555,6 +555,10 @@ def engine_cycle():
         valid_bear = [ob for ob in bearish_obs if not ob['breaker']]
         log(f'Valid (non-broken): {len(valid_bull)} Bull, {len(valid_bear)} Bear')
 
+        # Store all OBs for debugging
+        bot_state['all_bull_obs'] = [{'top': ob['top'], 'bottom': ob['bottom'], 'breaker': ob['breaker'], 'start_time': ob['start_time']} for ob in bullish_obs]
+        bot_state['all_bear_obs'] = [{'top': ob['top'], 'bottom': ob['bottom'], 'breaker': ob['breaker'], 'start_time': ob['start_time']} for ob in bearish_obs]
+
         bot_state['engine_step'] = 'finding nearest OBs'
         nearest_bull, nearest_bear = find_nearest_obs(bullish_obs, bearish_obs, current_price)
         bot_state['nearest_bull_ob'] = nearest_bull
@@ -662,6 +666,8 @@ def status():
         'mid_range': bot_state['mid_range'],
         'nearest_bull_ob': bot_state['nearest_bull_ob'],
         'nearest_bear_ob': bot_state['nearest_bear_ob'],
+        'all_bull_obs': bot_state.get('all_bull_obs', []),
+        'all_bear_obs': bot_state.get('all_bear_obs', []),
         'active_orders': bot_state['active_orders'],
         'fired_entries': bot_state['fired_entries'],
         'cycle_count': bot_state['cycle_count'],
