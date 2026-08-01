@@ -660,9 +660,9 @@ def process_timeframe(timeframe):
     return bullish_obs, bearish_obs
 
 def engine_cycle():
-log(f'--- Engine cycle #{bot_state["cycle_count"]} ---')
-        bot_state['engine_step'] = 'cycle started'
-        bot_state['order_errors'] = []
+    log(f'--- Engine cycle #{bot_state["cycle_count"]} ---')
+    bot_state['engine_step'] = 'cycle started'
+    bot_state['order_errors'] = []
 
     try:
         # === Step 1: Process primary timeframe (30min) ===
