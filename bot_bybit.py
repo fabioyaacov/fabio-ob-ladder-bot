@@ -23,8 +23,8 @@ app = Flask(__name__)
 # ============================================================================
 # CONFIGURATION - Environment variables (set on Railway)
 # ============================================================================
-API_KEY = os.environ.get('BYBIT_TESTNET_API_KEY', 'YOUR_API_KEY_HERE')
-API_SECRET = os.environ.get('BYBIT_TESTNET_API_SECRET', 'YOUR_API_SECRET_HERE')
+API_KEY = os.environ.get('BYBIT_API_KEY', os.environ.get('BYBIT_TESTNET_API_KEY', 'YOUR_API_KEY_HERE'))
+API_SECRET = os.environ.get('BYBIT_API_SECRET', os.environ.get('BYBIT_TESTNET_API_SECRET', 'YOUR_API_SECRET_HERE'))
 
 SYMBOL = os.environ.get('SYMBOL', 'BTCUSDT')
 ACCOUNT_BALANCE = float(os.environ.get('ACCOUNT_BALANCE', '1000'))
