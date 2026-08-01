@@ -13,6 +13,7 @@ import os
 import math
 import threading
 import time
+import requests
 from datetime import datetime
 from flask import Flask, request, jsonify
 import ccxt
@@ -424,11 +425,47 @@ def place_entry_orders(symbol, entries):
     return placed
 
 def fetch_ohlcv(timeframe, limit=500):
+    """Fetch OHLCV directly from Bybit v5 API (more reliable than CCXT for testnet)."""
     try:
         log(f'fetch_ohlcv: {SYMBOL} {timeframe} limit={limit}')
-        data = exchange.fetch_ohlcv(SYMBOL, timeframe=timeframe, limit=limit)
-        log(f'fetch_ohlcv: got {len(data) if data else 0} bars')
+        url = 'https://api-testnet.bybit.com/v5/market/kline'
+        params = {
+            'category': 'linear',
+            'symbol': SYMBOL,
+            'interval': timeframe,
+            'limit': str(limit),
+        }
+        resp = requests.get(url, params=params, timeout=15)
+        log(f'fetch_ohlcv: HTTP {resp.status_code}')
+        if resp.status_code != 200:
+            log(f'fetch_ohlcv: HTTP error {resp.status_code}: {resp.text[:200]}')
+            bot_state['errors'].append(f'fetch_ohlcv HTTP {resp.status_code}: {resp.text[:200]}')
+            return []
+        result = resp.json()
+        if result.get('retCode') != 0:
+            log(f'fetch_ohlcv: Bybit error: {result.get("retMsg")}')
+            bot_state['errors'].append(f'fetch_ohlcv Bybit: {result.get("retMsg")}')
+            return []
+        klines = result.get('result', {}).get('list', [])
+        # Bybit returns klines in reverse order (newest first), reverse to oldest first
+        klines.reverse()
+        # CCXT format: [timestamp, open, high, low, close, volume]
+        data = []
+        for k in klines:
+            data.append([
+                int(k[0]),    # timestamp
+                float(k[1]),  # open
+                float(k[2]),  # high
+                float(k[3]),  # low
+                float(k[4]),  # close
+                float(k[5]),  # volume
+            ])
+        log(f'fetch_ohlcv: got {len(data)} bars')
         return data
+    except requests.exceptions.Timeout:
+        log('fetch_ohlcv: TIMEOUT (15s)')
+        bot_state['errors'].append('fetch_ohlcv: TIMEOUT')
+        return []
     except Exception as e:
         log(f'fetch_ohlcv ERROR: {type(e).__name__}: {e}')
         bot_state['errors'].append(f'fetch_ohlcv: {type(e).__name__}: {str(e)}')
