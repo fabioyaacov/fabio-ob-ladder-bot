@@ -113,51 +113,91 @@ def detect_order_blocks(highs, lows, opens, closes, volumes, timestamps, swing_l
 
     bullish_obs = []
     bearish_obs = []
-
     pivots = find_pivots(highs, lows, swing_length)
-    pivot_indices = {p[0]: p[1] for p in pivots}
+
+    # Track last swing high/low and whether price has crossed them
+    last_swing_high_idx = None
+    last_swing_high_price = None
+    last_swing_low_idx = None
+    last_swing_low_price = None
+    crossed_high = False
+    crossed_low = False
 
     for i in range(swing_length, len(highs) - swing_length):
-        is_pivot_high = pivot_indices.get(i) == 'high'
-        is_pivot_low = pivot_indices.get(i) == 'low'
+        # Check if this index is a pivot
+        pivot_at_i = None
+        for p in pivots:
+            if p[0] == i:
+                pivot_at_i = p[1]
+                break
 
-        if is_pivot_high:
-            box_bottom = min(lows[max(0, i-3):i])
-            box_top = max(opens[i-1], closes[i-1])
-            actual_bottom = lows[i-1]
-            actual_top = highs[i-1]
-            actual_time = timestamps[i-1]
-            for j in range(1, min(i, 20)):
-                if lows[i-j] < actual_bottom:
-                    actual_bottom = lows[i-j]
-                    actual_top = max(opens[i-j], closes[i-j])
-                    actual_time = timestamps[i-j]
-            ob_size = abs(actual_top - actual_bottom)
-            if atr_val == 0 or ob_size <= atr_val * max_atr_mult:
-                bullish_obs.append({
-                    'top': actual_top, 'bottom': actual_bottom,
-                    'volume': volumes[i] + (volumes[i-1] if i > 0 else 0),
-                    'ob_type': 'Bull', 'start_time': actual_time,
-                    'breaker': False, 'break_time': None,
-                })
+        # Detect bullish OB: price closes above last swing high
+        if last_swing_high_idx is not None and not crossed_high:
+            if closes[i] > last_swing_high_price:
+                crossed_high = True
+                # Look back from the breakout candle to find the lowest point (box bottom)
+                # and the candle body high of that lowest candle (box top)
+                search_start = last_swing_high_idx if last_swing_high_idx > 0 else 0
+                box_bottom = min(lows[search_start:i])
+                # Find the candle with the lowest low, use its body high as box top
+                box_top = max(opens[i-1], closes[i-1])
+                box_bottom_final = lows[i-1]
+                box_top_final = max(opens[i-1], closes[i-1])
+                box_time = timestamps[i-1]
+                for j in range(1, min(i - search_start, 20)):
+                    idx = i - j
+                    if idx < search_start:
+                        break
+                    if lows[idx] < box_bottom_final:
+                        box_bottom_final = lows[idx]
+                        box_top_final = max(opens[idx], closes[idx])
+                        box_time = timestamps[idx]
 
-        if is_pivot_low:
-            actual_top = highs[i-1]
-            actual_bottom = lows[i-1]
-            actual_time = timestamps[i-1]
-            for j in range(1, min(i, 20)):
-                if highs[i-j] > actual_top:
-                    actual_top = highs[i-j]
-                    actual_bottom = min(opens[i-j], closes[i-j])
-                    actual_time = timestamps[i-j]
-            ob_size = abs(actual_top - actual_bottom)
-            if atr_val == 0 or ob_size <= atr_val * max_atr_mult:
-                bearish_obs.append({
-                    'top': actual_top, 'bottom': actual_bottom,
-                    'volume': volumes[i] + (volumes[i-1] if i > 0 else 0),
-                    'ob_type': 'Bear', 'start_time': actual_time,
-                    'breaker': False, 'break_time': None,
-                })
+                ob_size = abs(box_top_final - box_bottom_final)
+                if atr_val == 0 or ob_size <= atr_val * max_atr_mult:
+                    bullish_obs.append({
+                        'top': box_top_final, 'bottom': box_bottom_final,
+                        'volume': volumes[i] + (volumes[i-1] if i > 0 else 0),
+                        'ob_type': 'Bull', 'start_time': box_time,
+                        'breaker': False, 'break_time': None,
+                    })
+
+        # Detect bearish OB: price closes below last swing low
+        if last_swing_low_idx is not None and not crossed_low:
+            if closes[i] < last_swing_low_price:
+                crossed_low = True
+                search_start = last_swing_low_idx if last_swing_low_idx > 0 else 0
+                box_top = max(highs[search_start:i])
+                box_top_final = highs[i-1]
+                box_bottom_final = min(opens[i-1], closes[i-1])
+                box_time = timestamps[i-1]
+                for j in range(1, min(i - search_start, 20)):
+                    idx = i - j
+                    if idx < search_start:
+                        break
+                    if highs[idx] > box_top_final:
+                        box_top_final = highs[idx]
+                        box_bottom_final = min(opens[idx], closes[idx])
+                        box_time = timestamps[idx]
+
+                ob_size = abs(box_top_final - box_bottom_final)
+                if atr_val == 0 or ob_size <= atr_val * max_atr_mult:
+                    bearish_obs.append({
+                        'top': box_top_final, 'bottom': box_bottom_final,
+                        'volume': volumes[i] + (volumes[i-1] if i > 0 else 0),
+                        'ob_type': 'Bear', 'start_time': box_time,
+                        'breaker': False, 'break_time': None,
+                    })
+
+        # Update last swing points
+        if pivot_at_i == 'high':
+            last_swing_high_idx = i
+            last_swing_high_price = highs[i]
+            crossed_high = False
+        if pivot_at_i == 'low':
+            last_swing_low_idx = i
+            last_swing_low_price = lows[i]
+            crossed_low = False
 
     return bullish_obs, bearish_obs
 
@@ -511,6 +551,9 @@ def engine_cycle():
         bot_state['engine_step'] = 'updating breaker status'
         bullish_obs = update_breaker_status(bullish_obs, highs, lows, timestamps)
         bearish_obs = update_breaker_status(bearish_obs, highs, lows, timestamps)
+        valid_bull = [ob for ob in bullish_obs if not ob['breaker']]
+        valid_bear = [ob for ob in bearish_obs if not ob['breaker']]
+        log(f'Valid (non-broken): {len(valid_bull)} Bull, {len(valid_bear)} Bear')
 
         bot_state['engine_step'] = 'finding nearest OBs'
         nearest_bull, nearest_bear = find_nearest_obs(bullish_obs, bearish_obs, current_price)
