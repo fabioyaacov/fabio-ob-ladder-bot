@@ -11,7 +11,6 @@ No TradingView webhook needed. Runs fully autonomous on Railway.
 """
 
 import os
-import math
 import threading
 import time
 import requests
