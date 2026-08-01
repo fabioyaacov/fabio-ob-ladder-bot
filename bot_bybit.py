@@ -496,10 +496,11 @@ def parse_ohlcv(data):
 
 def engine_cycle():
     log(f'--- Engine cycle #{bot_state["cycle_count"]} ---')
-    bot_state['engine_step'] = 'starting cycle'
+    bot_state['engine_step'] = 'cycle started'
+    bot_state['engine_step'] = 'about to fetch ohlcv'
 
     try:
-        bot_state['engine_step'] = f'fetching OHLCV {PRIMARY_TIMEFRAME}'
+        bot_state['engine_step'] = 'calling fetch_ohlcv'
         data = fetch_ohlcv(PRIMARY_TIMEFRAME, limit=500)
         if not data or len(data) < SWING_LENGTH * 2 + 1:
             log(f'Not enough data ({len(data) if data else 0} bars)')
@@ -636,6 +637,41 @@ def status():
         'errors': bot_state['errors'][-10:],
         'api_key_set': API_KEY != 'YOUR_API_KEY_HERE',
     })
+
+@app.route('/test-net', methods=['GET'])
+def test_net():
+    """Test network connectivity to Bybit testnet from Flask context."""
+    try:
+        resp = requests.get('https://api-testnet.bybit.com/v5/market/time', timeout=10)
+        return jsonify({
+            'status': 'ok',
+            'http_code': resp.status_code,
+            'response': resp.json(),
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error_type': type(e).__name__,
+            'error': str(e),
+        }), 500
+
+@app.route('/test-ohlcv', methods=['GET'])
+    """Test fetching OHLCV data from Bybit testnet from Flask context."""
+    try:
+        url = 'https://api-testnet.bybit.com/v5/market/kline'
+        params = {'category': 'linear', 'symbol': SYMBOL, 'interval': '30m', 'limit': '5'}
+        resp = requests.get(url, params=params, timeout=15)
+        return jsonify({
+            'status': 'ok',
+            'http_code': resp.status_code,
+            'bars': len(resp.json().get('result', {}).get('list', [])),
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error_type': type(e).__name__,
+            'error': str(e),
+        }), 500
 
 @app.route('/health', methods=['GET'])
 def health():
