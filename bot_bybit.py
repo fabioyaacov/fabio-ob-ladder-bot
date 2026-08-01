@@ -943,6 +943,20 @@ def test_ohlcv():
 def health():
     return jsonify({'status': 'ok', 'engine_running': bot_state['running']}), 200
 
+@app.route('/debug-keys', methods=['GET'])
+def debug_keys():
+    return jsonify({
+        'api_key_prefix': API_KEY[:8] + '...' if API_KEY and API_KEY != 'YOUR_API_KEY_HERE' else 'NOT SET',
+        'api_key_length': len(API_KEY) if API_KEY else 0,
+        'api_secret_prefix': API_SECRET[:4] + '...' if API_SECRET and API_SECRET != 'YOUR_API_SECRET_HERE' else 'NOT SET',
+        'api_secret_length': len(API_SECRET) if API_SECRET else 0,
+        'env_bybit_api_key': bool(os.environ.get('BYBIT_API_KEY')),
+        'env_bybit_testnet_api_key': bool(os.environ.get('BYBIT_TESTNET_API_KEY')),
+        'env_bybit_api_secret': bool(os.environ.get('BYBIT_API_SECRET')),
+        'env_bybit_testnet_api_secret': bool(os.environ.get('BYBIT_TESTNET_API_SECRET')),
+        'sandbox_mode': True,
+    })
+
 @app.route('/cancel', methods=['POST'])
 def cancel_orders():
     symbol = request.json.get('symbol', SYMBOL) if request.json else SYMBOL
