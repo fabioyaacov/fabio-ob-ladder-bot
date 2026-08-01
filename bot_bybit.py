@@ -738,16 +738,17 @@ def home():
     })
 
 # ============================================================================
-# STARTUP
+# STARTUP - Engine starts on import (works with gunicorn)
 # ============================================================================
+
+# Start engine thread on module load (gunicorn imports the module, so this runs)
+if API_KEY != 'YOUR_API_KEY_HERE':
+    log('Starting Smart OB Ladder Engine thread...')
+    start_engine_thread()
+else:
+    log('WARNING: API keys not set. Engine will not start. Configure BYBIT_TESTNET_API_KEY and BYBIT_TESTNET_API_SECRET.')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     log(f'Starting Fabio OB Ladder Bot on port {port}')
-    log(f'API Key configured: {API_KEY != "YOUR_API_KEY_HERE"}')
-
-    # Start engine in background thread
-    start_engine_thread()
-
-    # Start Flask for monitoring
     app.run(host='0.0.0.0', port=port, debug=False)
