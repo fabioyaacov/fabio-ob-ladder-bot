@@ -34,7 +34,7 @@ POLL_INTERVAL_SEC = int(os.environ.get('POLL_INTERVAL_SEC', '60'))
 SWING_LENGTH = int(os.environ.get('SWING_LENGTH', '10'))
 MAX_ATR_MULT = float(os.environ.get('MAX_ATR_MULT', '3.5'))
 NUM_ENTRIES = 4
-TIMEFRAMES = ['1d', '240', '60', '30']
+TIMEFRAMES = ['1d', '4h', '1h', '30m']
 
 # ============================================================================
 # EXCHANGE SETUP
@@ -43,6 +43,8 @@ exchange = ccxt.bybit({
     'apiKey': API_KEY,
     'secret': API_SECRET,
     'test': True,
+    'enableRateLimit': True,
+    'timeout': 30000,
     'options': {
         'defaultType': 'future',
         'defaultMarginMode': 'isolated',
@@ -524,10 +526,13 @@ async def place_entry_orders(symbol, entries):
 async def fetch_ohlcv(timeframe, limit=500):
     """Fetch OHLCV data from Bybit."""
     try:
-      data = await exchange.fetch_ohlcv(SYMBOL, timeframe=timeframe, limit=limit)
-      return data
+        log(f'fetch_ohlcv: calling exchange.fetch_ohlcv({SYMBOL}, {timeframe}, limit={limit})...')
+        data = await exchange.fetch_ohlcv(SYMBOL, timeframe=timeframe, limit=limit)
+        log(f'fetch_ohlcv: got {len(data) if data else 0} bars')
+        return data
     except Exception as e:
-        log(f'Error fetching OHLCV {timeframe}: {e}')
+        log(f'fetch_ohlcv ERROR: {type(e).__name__}: {e}')
+        bot_state['errors'].append(f'fetch_ohlcv {timeframe}: {type(e).__name__}: {str(e)}')
         return []
 
 def parse_ohlcv(data):
