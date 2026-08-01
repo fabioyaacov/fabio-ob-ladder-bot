@@ -76,6 +76,7 @@ bot_state = {
     'all_bull_obs': [],
     'all_bear_obs': [],
     'filter_obs': {},
+    'order_errors': [],
 }
 
 def log(msg):
@@ -486,6 +487,7 @@ def place_entry_orders(symbol, entries):
     setup_hedge_mode(symbol)
     min_qty = 0.001
     placed = []
+    order_errors = []
 
     for entry in entries:
         entry_id = entry['entry_id']
@@ -566,8 +568,11 @@ def place_entry_orders(symbol, entries):
             placed.append(entry_id)
 
         except Exception as e:
-            log(f'ERROR placing {entry_id}: {e}')
+            err = f'ERROR placing {entry_id}: {e}'
+            log(err)
+            order_errors.append(err)
 
+    bot_state['order_errors'] = order_errors
     return placed
 
 def fetch_ohlcv(timeframe, limit=500):
@@ -655,8 +660,9 @@ def process_timeframe(timeframe):
     return bullish_obs, bearish_obs
 
 def engine_cycle():
-    log(f'--- Engine cycle #{bot_state["cycle_count"]} ---')
-    bot_state['engine_step'] = 'cycle started'
+log(f'--- Engine cycle #{bot_state["cycle_count"]} ---')
+        bot_state['engine_step'] = 'cycle started'
+        bot_state['order_errors'] = []
 
     try:
         # === Step 1: Process primary timeframe (30min) ===
@@ -890,6 +896,7 @@ def status():
         'filter_obs': bot_state.get('filter_obs', {}),
         'active_orders': bot_state['active_orders'],
         'fired_entries': bot_state['fired_entries'],
+        'order_errors': bot_state.get('order_errors', []),
         'cycle_count': bot_state['cycle_count'],
         'last_cycle': bot_state['last_cycle'],
         'errors': bot_state['errors'][-10:],
