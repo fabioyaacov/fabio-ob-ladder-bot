@@ -225,8 +225,6 @@ def find_nearest_obs(bullish_obs, bearish_obs, current_price):
     nearest_bear_dist = float('inf')
 
     for ob in bullish_obs:
-        if ob['breaker']:
-            continue
         ob_mid = (ob['top'] + ob['bottom']) / 2.0
         ob_range = abs(ob['top'] - ob['bottom'])
         dist = abs(current_price - ob_mid)
@@ -236,8 +234,6 @@ def find_nearest_obs(bullish_obs, bearish_obs, current_price):
             nearest_bull = ob
 
     for ob in bearish_obs:
-        if ob['breaker']:
-            continue
         ob_mid = (ob['top'] + ob['bottom']) / 2.0
         ob_range = abs(ob['top'] - ob['bottom'])
         dist = abs(current_price - ob_mid)
