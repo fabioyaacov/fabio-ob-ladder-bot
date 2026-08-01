@@ -646,7 +646,8 @@ def test_net():
         return jsonify({
             'status': 'ok',
             'http_code': resp.status_code,
-            'response': resp.json(),
+            'content_type': resp.headers.get('content-type', 'unknown'),
+            'raw_text': resp.text[:500],
         })
     except Exception as e:
         return jsonify({
@@ -665,7 +666,8 @@ def test_ohlcv():
         return jsonify({
             'status': 'ok',
             'http_code': resp.status_code,
-            'bars': len(resp.json().get('result', {}).get('list', [])),
+            'content_type': resp.headers.get('content-type', 'unknown'),
+            'raw_text': resp.text[:500],
         })
     except Exception as e:
         return jsonify({
