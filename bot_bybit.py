@@ -53,6 +53,8 @@ exchange = ccxt.bybit({
     }
 })
 
+exchange.urls['api'] = 'https://api-demo.bybit.com'
+
 # ============================================================================
 # GLOBAL STATE
 # ============================================================================
@@ -991,7 +993,7 @@ def test_api_raw():
         hashlib.sha256
     ).hexdigest()
 
-    url = 'https://api.bybit.com/v5/account/wallet-balance'
+    url = 'https://api-demo.bybit.com/v5/account/wallet-balance'
     headers = {
         'X-BAPI-API-KEY': api_key,
         'X-BAPI-SIGN': sign,
