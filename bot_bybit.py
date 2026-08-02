@@ -53,8 +53,6 @@ exchange = ccxt.bybit({
     }
 })
 
-exchange.set_sandbox_mode(True)
-
 # ============================================================================
 # GLOBAL STATE
 # ============================================================================
@@ -954,8 +952,25 @@ def debug_keys():
         'env_bybit_testnet_api_key': bool(os.environ.get('BYBIT_TESTNET_API_KEY')),
         'env_bybit_api_secret': bool(os.environ.get('BYBIT_API_SECRET')),
         'env_bybit_testnet_api_secret': bool(os.environ.get('BYBIT_TESTNET_API_SECRET')),
-        'sandbox_mode': True,
+        'sandbox_mode': False,
     })
+
+@app.route('/test-api', methods=['GET'])
+def test_api():
+    try:
+        balance = exchange.fetch_balance()
+        return jsonify({
+            'status': 'ok',
+            'usdt_free': balance.get('USDT', {}).get('free', 'N/A'),
+            'usdt_used': balance.get('USDT', {}).get('used', 'N/A'),
+            'usdt_total': balance.get('USDT', {}).get('total', 'N/A'),
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error_type': type(e).__name__,
+            'error': str(e),
+        }), 500
 
 @app.route('/cancel', methods=['POST'])
 def cancel_orders():
@@ -990,7 +1005,7 @@ def home():
             'filter_timeframes': FILTER_TIMEFRAMES,
             'num_entries_per_ob': NUM_ENTRIES,
             'api_key_set': API_KEY != 'YOUR_API_KEY_HERE',
-            'testnet': True,
+            'testnet': False,
             'hedge_mode': True,
             'margin_mode': 'isolated',
         },
