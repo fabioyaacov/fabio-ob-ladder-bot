@@ -972,6 +972,50 @@ def test_api():
             'error': str(e),
         }), 500
 
+@app.route('/test-api-raw', methods=['GET'])
+def test_api_raw():
+    import hmac
+    import hashlib
+    import json as jsonmod
+
+    timestamp = str(int(time.time() * 1000))
+    recv_window = '5000'
+    api_key = API_KEY
+    api_secret = API_SECRET
+
+    param_str = str(timestamp) + api_key + recv_window + 'category=linear&coin=USDT'
+
+    sign = hmac.new(
+        bytes(api_secret, 'utf-8'),
+        param_str.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+    url = 'https://api.bybit.com/v5/account/wallet-balance'
+    headers = {
+        'X-BAPI-API-KEY': api_key,
+        'X-BAPI-SIGN': sign,
+        'X-BAPI-SIGN-TYPE': '2',
+        'X-BAPI-TIMESTAMP': timestamp,
+        'X-BAPI-RECV-WINDOW': recv_window,
+    }
+    params = {'category': 'linear', 'coin': 'USDT'}
+
+    try:
+        resp = requests.get(url, headers=headers, params=params, timeout=15)
+        return jsonify({
+            'status_code': resp.status_code,
+            'response': resp.text[:1000],
+            'api_key_used': api_key[:6] + '...' + api_key[-4:],
+            'sign_prefix': sign[:16] + '...',
+            'timestamp': timestamp,
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+        }), 500
+
 @app.route('/cancel', methods=['POST'])
 def cancel_orders():
     symbol = request.json.get('symbol', SYMBOL) if request.json else SYMBOL
