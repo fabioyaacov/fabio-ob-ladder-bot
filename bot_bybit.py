@@ -50,7 +50,6 @@ exchange = ccxt.bybit({
         'defaultType': 'future',
         'defaultMarginMode': 'isolated',
         'defaultHedgeMode': True,
-        'accountType': 'unified',
     }
 })
 
@@ -510,13 +509,13 @@ def place_entry_orders(symbol, entries):
         tp2_qty = round(qty * 0.3333, 4)
         tp3_qty = round(qty - tp1_qty - tp2_qty, 4)
 
-        try:
-            log(f'Placing {direction} limit: {symbol} qty={qty} @ {price}')
-            main_order = exchange.create_order(
-                symbol=symbol, type='limit', side=order_side,
-                amount=qty, price=float(price),
-                params={'positionIdx': pos_idx, 'timeInForce': 'GTC'}
-            )
+try:
+                log(f'Placing {direction} limit: {symbol} qty={qty} @ {price}')
+                main_order = exchange.create_order(
+                    symbol=symbol, type='limit', side=order_side,
+                    amount=qty, price=float(price),
+                    params={'positionIdx': pos_idx, 'timeInForce': 'GTC', 'accountType': 'unified'}
+                )
             log(f'Limit order placed: ID={main_order["id"]}')
 
             try:
@@ -524,7 +523,7 @@ def place_entry_orders(symbol, entries):
                     symbol=symbol, type='market', side=close_side, amount=qty,
                     params={'stopPrice': float(sl), 'positionIdx': pos_idx,
                             'reduceOnly': True, 'trigger': 'last_price',
-                            'triggerDirection': 'descending', 'slOrderType': 'market'}
+                            'triggerDirection': 'descending', 'slOrderType': 'market', 'accountType': 'unified'}
                 )
                 log(f'SL placed for {entry_id}')
             except Exception as e:
@@ -534,7 +533,7 @@ def place_entry_orders(symbol, entries):
                 exchange.create_order(
                     symbol=symbol, type='limit', side=close_side, amount=tp1_qty,
                     price=float(tp1), params={'positionIdx': pos_idx, 'reduceOnly': True,
-                    'timeInForce': 'GTC', 'trigger': 'last_price', 'triggerDirection': 'ascending'}
+                    'timeInForce': 'GTC', 'trigger': 'last_price', 'triggerDirection': 'ascending', 'accountType': 'unified'}
                 )
                 log(f'TP1 placed for {entry_id}')
             except Exception as e:
@@ -544,7 +543,7 @@ def place_entry_orders(symbol, entries):
                 exchange.create_order(
                     symbol=symbol, type='limit', side=close_side, amount=tp2_qty,
                     price=float(tp2), params={'positionIdx': pos_idx, 'reduceOnly': True,
-                    'timeInForce': 'GTC', 'trigger': 'last_price', 'triggerDirection': 'ascending'}
+                    'timeInForce': 'GTC', 'trigger': 'last_price', 'triggerDirection': 'ascending', 'accountType': 'unified'}
                 )
                 log(f'TP2 placed for {entry_id}')
             except Exception as e:
@@ -554,7 +553,7 @@ def place_entry_orders(symbol, entries):
                 exchange.create_order(
                     symbol=symbol, type='limit', side=close_side, amount=tp3_qty,
                     price=float(tp3), params={'positionIdx': pos_idx, 'reduceOnly': True,
-                    'timeInForce': 'GTC', 'trigger': 'last_price', 'triggerDirection': 'ascending'}
+                    'timeInForce': 'GTC', 'trigger': 'last_price', 'triggerDirection': 'ascending', 'accountType': 'unified'}
                 )
                 log(f'TP3 placed for {entry_id}')
             except Exception as e:
@@ -981,12 +980,7 @@ def test_api_raw():
         balance = exchange.fetch_balance({'type': 'swap'})
         return jsonify({
             'status': 'ok',
-            'usdt_free': balance.get('USDT', {}).get('free', 'N/A'),
-            'usdt_total': balance.get('USDT', {}).get('total', 'N/A'),
-            'raw_keys': {
-                'api_key': API_KEY[:6] + '...' + API_KEY[-4:],
-                'secret_len': len(API_SECRET),
-            },
+            'raw_balance': str(balance)[:1000],
         })
     except Exception as e:
         return jsonify({
