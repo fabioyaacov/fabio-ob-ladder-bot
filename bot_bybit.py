@@ -976,16 +976,41 @@ def test_api():
 
 @app.route('/test-api-raw', methods=['GET'])
 def test_api_raw():
+    import hmac
+    import hashlib
+
+    timestamp = str(int(time.time() * 1000))
+    recv_window = '5000'
+    api_key = API_KEY
+    api_secret = API_SECRET
+
+    param_str = str(timestamp) + api_key + recv_window + 'accountType=UNIFIED&coin=USDT'
+
+    sign = hmac.new(
+        bytes(api_secret, 'utf-8'),
+        param_str.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+    url = 'https://api-demo.bybit.com/v5/account/wallet-balance'
+    headers = {
+        'X-BAPI-API-KEY': api_key,
+        'X-BAPI-SIGN': sign,
+        'X-BAPI-SIGN-TYPE': '2',
+        'X-BAPI-TIMESTAMP': timestamp,
+        'X-BAPI-RECV-WINDOW': recv_window,
+    }
+    params = {'accountType': 'UNIFIED', 'coin': 'USDT'}
+
     try:
-        balance = exchange.fetch_balance({'type': 'swap'})
+        resp = requests.get(url, headers=headers, params=params, timeout=15)
         return jsonify({
-            'status': 'ok',
-            'raw_balance': str(balance)[:1000],
+            'status_code': resp.status_code,
+            'response': resp.text[:1000],
         })
     except Exception as e:
         return jsonify({
             'status': 'error',
-            'error_type': type(e).__name__,
             'error': str(e)[:500],
         }), 500
 
