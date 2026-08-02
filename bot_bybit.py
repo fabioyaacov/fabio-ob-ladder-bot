@@ -50,6 +50,7 @@ exchange = ccxt.bybit({
         'defaultType': 'future',
         'defaultMarginMode': 'isolated',
         'defaultHedgeMode': True,
+        'accountType': 'unified',
     }
 })
 
@@ -1001,7 +1002,7 @@ def test_api_raw():
         'X-BAPI-TIMESTAMP': timestamp,
         'X-BAPI-RECV-WINDOW': recv_window,
     }
-    params = {'category': 'linear', 'coin': 'USDT'}
+    params = {'accountType': 'UNIFIED', 'coin': 'USDT'}
 
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=15)
